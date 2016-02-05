@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #define UNSEEN -1
 
@@ -88,4 +89,36 @@ void unsee(struct graph *g, node_t nd, int *seen){
     for(int i = 0; i < g->size; i++){
         if(seen[i] == nd) seen[i] = UNSEEN;
     }
+}
+
+
+int degree_cmp(const void *u, const void *v, void *degrees){
+    return -((int *)degrees)[*(int *)u] + ((int *)degrees)[*(int *)v];
+}
+
+node_t *degree_sort(struct graph *g){
+    node_t *vtcs = calloc(g->size, sizeof(node_t));
+    int *degrees = calloc(g->size, sizeof(int));
+    for(int i = 0; i < g->size; i++){
+        vtcs[i] = i;
+        for(int j = 0; j < g->size; j++){
+            if(g->adjm[i*g->size + j]) degrees[i]++;
+        }
+    }
+
+    qsort_r(vtcs, g->size, sizeof(node_t), degree_cmp, degrees);
+
+    // TODO: figure out how to do this in-place
+    int *new_adjm = calloc(g->size * g->size, sizeof(int));
+    for(int i = 0; i < g->size; i++){
+        for(int j = 0; j < g->size; j++){
+            new_adjm[i*g->size + j] = g->adjm[vtcs[i]*g->size + vtcs[j]];
+        }
+    }
+    memcpy(g->adjm, new_adjm, g->size * g->size * sizeof(int));
+
+    free(degrees);
+    free(new_adjm);
+
+    return vtcs;
 }
