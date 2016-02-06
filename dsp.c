@@ -7,9 +7,23 @@
 
 #define UNSEEN -1
 
-void dsp_rec(struct graph *g, int *seen, int nseen, int *soln, int soln_size, node_t nd);
+// struct for configuring the behaviour of dsp_rec
+struct dsp_config {
+    // if true, will not consider already seen vertices for use in the
+    // solution; used for faster heuristic search
+    bool ignore_seen;
+
+    // if true, will always add vertices to the solution when possible; used in
+    // conjuction with ignore_seen for an even faster (and less optimal)
+    // heuristic search
+    bool always_add;
+};
+
+void dsp_rec(struct graph *g, struct dsp_config dc,
+             int *seen, int nseen, int *soln, int soln_size, node_t nd);
 int see(struct graph *g, node_t nd, int *seen);
 void unsee(struct graph *g, node_t nd, int *seen);
+void clear_ss(int *soln, int *seen, int n);
 
 int *best_soln; // static array used by dsp_solve to store the best known soln
 int best_size; // size (i.e., # of chosen vertices) of best_size
@@ -18,15 +32,40 @@ int *dsp_solve(struct graph *g){
     // 0 for unchosen, 1 for chosen
     int *soln = calloc(g->size, sizeof(int));
 
+    // UNSEEN for unseen, k for "seen first by vertex k"
+    int *seen = calloc(g->size, sizeof(int));
+
     // populate best solution with trivial solution, i.e., all vertices
     best_soln = calloc(g->size, sizeof(int));
     for(int i = 0; i < g->size; i++) best_soln[i] = 1;
     best_size = g->size;
 
-    // UNSEEN for unseen, k for "seen first by vertex k"
-    int *seen = calloc(g->size, sizeof(int));
-    for(int i = 0; i < g->size; i++) seen[i] = UNSEEN;
-    dsp_rec(g, seen, 0, soln, 0, 0);
+    struct dsp_config dc;
+
+    // find heuristic solution
+    dc.ignore_seen = true;
+    dc.always_add = true;
+    printf("Computing always_add heuristic...\n");
+    clear_ss(soln, seen, g->size);
+    dsp_rec(g, dc, seen, 0, soln, 0, 0);
+    printf("Finished computing always_add heuristic.\n");
+
+    // find better heuristic solution
+    dc.ignore_seen = true;
+    dc.always_add = false;
+    printf("Computing ignore_seen heuristic...\n");
+    clear_ss(soln, seen, g->size);
+    dsp_rec(g, dc, seen, 0, soln, 0, 0);
+    printf("Finished computing ignore_seen heuristic.\n");
+
+    // find optimal solution
+    dc.ignore_seen = false;
+    dc.always_add = false;
+    printf("Computing optimal solution...\n");
+    clear_ss(soln, seen, g->size);
+    dsp_rec(g, dc, seen, 0, soln, 0, 0);
+    printf("Finished computing optimal solution.\n");
+
 
     free(soln);
     free(seen);
@@ -40,12 +79,15 @@ int *dsp_solve(struct graph *g){
 // best such solution if a better one is found.
 //
 // g:           the input graph
+// dc:          a dsp_config struct configuring the behaviour of this function
 // seen:        seen[i] is UNSEEN if vertex i is unseen, v if it was first seen by vertex v
 // nseen:       number of seen (i.e., entries that aren't UNSEEN) entries in seen
 // soln:        the currently built solution
 // soln_size:   the number of vertices selected by soln
 // nd:          the vertex being considered (i.e., branched on)
-void dsp_rec(struct graph *g, int *seen, int nseen, int *soln, int soln_size, node_t nd){
+void dsp_rec(struct graph *g, struct dsp_config dc,
+             int *seen, int nseen, int *soln, int soln_size, node_t nd){
+    bool tried_add = false;
     assert(nseen <= g->size);
 
     if(soln_size >= best_size){ // impossible to find a better solution
@@ -55,19 +97,23 @@ void dsp_rec(struct graph *g, int *seen, int nseen, int *soln, int soln_size, no
         for(int i = 0; i < g->size; i++) best_soln[i] = soln[i];
         best_size = soln_size;
     }else if(nd < g->size){
-        if(true){
+        if(!(dc.ignore_seen && seen[nd] != UNSEEN)){
             soln[nd] = 1;
             int new_seen = see(g, nd, seen);
 
             // branch where vertex nd is selected
-            dsp_rec(g, seen, nseen+new_seen, soln, soln_size+1, nd+1);
+            dsp_rec(g, dc, seen, nseen+new_seen, soln, soln_size+1, nd+1);
             unsee(g, nd, seen);
+
+            tried_add = true;
         }
 
         soln[nd] = 0;
 
         // branch where vertex nd is not selected
-        dsp_rec(g, seen, nseen, soln, soln_size, nd+1);
+        if(!dc.always_add || !tried_add){
+            dsp_rec(g, dc, seen, nseen, soln, soln_size, nd+1);
+        }
     }
 }
 
@@ -125,4 +171,11 @@ node_t *degree_sort(struct graph *g){
     free(new_adjm);
 
     return vtcs;
+}
+
+void clear_ss(int *soln, int *seen, int n){
+    for(int i = 0; i < n; i++){
+        soln[i] = 0;
+        seen[i] = UNSEEN;
+    }
 }
