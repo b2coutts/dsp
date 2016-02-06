@@ -23,7 +23,7 @@ int *dsp_solve(struct graph *g){
     for(int i = 0; i < g->size; i++) best_soln[i] = 1;
     best_size = g->size;
 
-    // -1 for unseen, k for "seen first by vertex k"
+    // UNSEEN for unseen, k for "seen first by vertex k"
     int *seen = calloc(g->size, sizeof(int));
     for(int i = 0; i < g->size; i++) seen[i] = UNSEEN;
     dsp_rec(g, seen, 0, soln, 0, 0);
@@ -40,8 +40,8 @@ int *dsp_solve(struct graph *g){
 // best such solution if a better one is found.
 //
 // g:           the input graph
-// seen:        seen[i] is -1 if vertex i is unseen, v if it was first seen by vertex v
-// nseen:       number of seen (i.e., entries that aren't -1) entries in seen
+// seen:        seen[i] is UNSEEN if vertex i is unseen, v if it was first seen by vertex v
+// nseen:       number of seen (i.e., entries that aren't UNSEEN) entries in seen
 // soln:        the currently built solution
 // soln_size:   the number of vertices selected by soln
 // nd:          the vertex being considered (i.e., branched on)
@@ -55,7 +55,7 @@ void dsp_rec(struct graph *g, int *seen, int nseen, int *soln, int soln_size, no
         for(int i = 0; i < g->size; i++) best_soln[i] = soln[i];
         best_size = soln_size;
     }else if(nd < g->size){
-        if(seen[nd] == UNSEEN){
+        if(true){
             soln[nd] = 1;
             int new_seen = see(g, nd, seen);
 
@@ -73,8 +73,12 @@ void dsp_rec(struct graph *g, int *seen, int nseen, int *soln, int soln_size, no
 
 // returns number of new nodes seen
 int see(struct graph *g, node_t nd, int *seen){
-    int new_seen = 1; // 1 for nd
-    seen[nd] = nd;
+    int new_seen = 0;
+    if(seen[nd] == UNSEEN){
+        seen[nd] = nd;
+        new_seen++;
+    }
+
     for(int i = 0; i < g->size; i++){
         if(g->adjm[nd*g->size + i] && seen[i] == UNSEEN){
             seen[i] = nd;
